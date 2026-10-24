@@ -4,10 +4,12 @@ import hashlib
 import re
 import secrets
 import time
+from difflib import SequenceMatcher
 from urllib.parse import urlencode
 
 import httpx
 
+from .matching import normalized
 from .models import Artist, Track
 
 
@@ -186,17 +188,55 @@ class Spotify:
         if reference:
             result = await self.call("GET", f"/{kind}s/{reference}")
             return [artist_from(result) if kind == "artist" else track_from(result)]
+        if kind == "artist":
+            return await self.search_artists(query)
         result = await self.call(
             "GET",
             "/search",
-            params={
-                "q": query,
-                "type": kind,
-                "limit": 10,
-            },
+            params={"q": query, "type": kind, "limit": 10},
         )
-        convert = artist_from if kind == "artist" else track_from
-        return [convert(d) for d in result.get(f"{kind}s", {}).get("items", []) if d]
+        return [track_from(d) for d in result.get("tracks", {}).get("items", []) if d]
+
+    async def search_artists(self, query):
+        # Spotify's broad relevance search can replace a band with related artists.
+        # Ask for names first; only use broad search when an exact name is absent.
+        name = query.strip()
+        if name.casefold().startswith("artist:"):
+            name = name[len("artist:") :].strip()
+        name = name.replace('"', "").strip()
+        if not normalized(name):
+            return []
+        wanted = normalized(name)
+        filtered = await self.call(
+            "GET",
+            "/search",
+            params={"q": f'artist:"{name}"', "type": "artist", "limit": 10},
+        )
+        items = [artist_from(d) for d in filtered.get("artists", {}).get("items", []) if d]
+        if not any(normalized(a.name) == wanted for a in items):
+            broad = await self.call(
+                "GET",
+                "/search",
+                params={"q": name, "type": "artist", "limit": 10},
+            )
+            items.extend(artist_from(d) for d in broad.get("artists", {}).get("items", []) if d)
+        unique = {}
+        for artist in items:
+            unique.setdefault(artist.id, artist)
+        items = list(unique.values())
+
+        def rank(artist):
+            candidate = normalized(artist.name)
+            if candidate == wanted:
+                return (0, 0)
+            if candidate.startswith(wanted):
+                return (1, 0)
+            if wanted in candidate:
+                return (2, 0)
+            return (3, -SequenceMatcher(None, wanted, candidate).ratio())
+
+        # Stable sorting preserves Spotify's order among equally good name matches.
+        return sorted(items, key=rank)[:10]
 
 
 class LastFM:
