@@ -1,137 +1,89 @@
 # Playlist Garden
 
-A personal web app that grows a playlist from a collection of bands and songs. Give each band an equal voice, keep your input songs or use them only as inspiration, and discover connections across the whole collection.
+Annoyed with AI playlist generators and Spotify's built-in playlist tools? Playlist Garden takes a collection of bands and songs, evaluates them as a group, and suggests songs from the connections across the whole collection. Connect your Spotify account to write new private playlists directly. Spotify Premium is required for the development app's owner under [Spotify's API rules](https://developer.spotify.com/documentation/web-api/concepts/quota-modes).
 
-Python 3.12 · FastAPI · SQLite · Last.fm discovery · Spotify catalogue and private playlists.
+## Install
 
-## Setup
-
-Install [Pixi](https://pixi.prefix.dev/latest/installation/). The supported environments are Apple Silicon macOS and Linux x86-64. All project configuration lives in `pyproject.toml`; `pixi.lock` pins the environments.
-
-From this directory:
+Install [Pixi](https://pixi.prefix.dev/latest/installation/), then clone the repository and install its pinned environment:
 
 ```sh
+git clone https://github.com/leonvgurp/spotify_playlist_generator.git
+cd spotify_playlist_generator
 pixi install --locked
-cp .env.example .env
 ```
 
-### Register the Spotify app (manual)
+Apple Silicon macOS and Linux x86-64 are supported. Complete the [one-time Spotify and Last.fm API setup in INIT.md](INIT.md) before starting the app.
 
-1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and sign in with the Spotify account you intend to use. The app owner needs **Spotify Premium** for development-mode API access. This personal tool can stay in development mode; no quota-extension application is needed. Spotify currently permits up to five authenticated users per development app ([requirements](https://developer.spotify.com/documentation/web-api/concepts/quota-modes)).
-2. Click **Create app**. Complete the form as follows:
+## Run and connect
 
-   | Form field | What to enter or select |
-   | --- | --- |
-   | **App name** (required) | `Playlist Garden` |
-   | **App description** (required) | `Personal local app to discover songs from selected artists and save private Spotify playlists.` |
-   | **Website** | Leave blank; this local app does not need a public website. |
-   | **Redirect URIs** (required) | `http://127.0.0.1:8000/auth/callback` |
-   | **Which API/SDKs are you planning to use?** | Select **Web API** only. Leave Ads API, Web Playback SDK, iOS, and Android unchecked. The app searches the catalogue and saves playlists; it does not play audio. |
-   | **Developer Terms of Service and Design Guidelines** | Read the linked terms/guidelines and tick the agreement checkbox if you agree. |
-
-3. In the redirect URI field, click **Add** if that button is shown. Confirm the URI appears in the registered list, then click **Save** or **Create** to submit the form. **“This field is required” under App description means you must enter the description above before submitting.** The name and description identify your app on Spotify's authorization screen; Spotify generates the Client ID after registration.
-4. Open the newly created app, then **Settings** (or **Basic Information** within Settings). Find **Client ID** and copy its full value. If your dashboard shows it directly on the app overview, you can copy it there. This is the app identifier, not your Spotify username, user ID, a playlist ID, or a track ID. See Spotify's [app settings guide](https://developer.spotify.com/documentation/web-api/concepts/apps).
-5. Open the local `.env` file in this repository's root, beside `pyproject.toml`. Paste the value after `SPOTIFY_CLIENT_ID=` and save the file. Keep `SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/callback`. You do **not** need to reveal, copy, or configure **Client Secret**: this implementation uses [Authorization Code with PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow). Access and refresh tokens are obtained automatically when you connect later.
-6. In the dashboard, verify **Settings → Redirect URIs** contains the same callback and save any changes. Copy it exactly, including `/auth/callback`, with no trailing slash. Spotify permits HTTP for explicit loopback IP addresses and rejects `localhost` as a redirect URI ([redirect rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)). You do not need a domain, HTTPS certificate, or public deployment for this setup.
-7. Open **Settings → Users Management** (also called **Users and Access** in some dashboard versions). Check that the Spotify account you will connect is allowed. If it is not listed, use **Add new user**, enter your name and the email address associated with that Spotify account, and save. Add any other test account here before it connects. A user can sometimes complete login without being allowlisted but then receive `403` on API calls ([user access instructions](https://developer.spotify.com/documentation/web-api/concepts/quota-modes)).
-
-### Obtain the Last.fm key and finish configuration (manual)
-
-1. Sign into Last.fm and [create an API account/key](https://www.last.fm/api/account/create), using `Playlist Garden` as the application name.
-2. After registration, Last.fm displays **Application name**, **API key**, **Shared secret**, and **Registered to**. Use them as follows:
-
-   | Last.fm result | What to do with it |
-   | --- | --- |
-   | **Application name** | Identifies your registration; no local configuration is needed. |
-   | **API key** | Copy the full value into `LASTFM_API_KEY` in the repository-root `.env` file. |
-   | **Shared secret** | Not needed by Playlist Garden. Do not add it to `.env` or the README. |
-   | **Registered to** | Your Last.fm account name; no local configuration is needed. |
-
-3. Open `.env` (not `.env.example`), replace the `LASTFM_API_KEY` value with your API key, and save. Use this format, substituting your actual key:
-
-   ```dotenv
-   LASTFM_API_KEY=your_lastfm_api_key
-   ```
-
-4. Restart `pixi run dev` if it is already running so it loads the updated configuration. After connecting Spotify, run `pixi run smoke` as described below to check both providers.
-
-**You do not need the Last.fm shared secret.** This app sends only the API key for its public similarity and top-track requests; it does not authenticate your Last.fm account or sign requests. There is no `LASTFM_SHARED_SECRET` setting. Spotify and Last.fm issue separate credentials; the Spotify Client ID cannot be used as a Last.fm key. Keep your actual credentials in the ignored `.env` file, rather than copying them into documentation.
-
-Your `.env` should look like this, with your own values:
-
-```dotenv
-SPOTIFY_CLIENT_ID=your_spotify_client_id
-SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/callback
-LASTFM_API_KEY=your_lastfm_api_key
-PLAYLIST_DATA_DIR=data
-```
-
-### Start and connect
-
-Start the app from this repository's root:
+From the repository root:
 
 ```sh
 pixi run dev
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000), click **Connect Spotify**, and sign in with the account allowed above. Review and approve the requested permissions to read and modify private playlists (`playlist-read-private` and `playlist-modify-private`). Spotify should return you to the local app. Opening the callback URL directly does not connect your account; start with **Connect Spotify**.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000), click **Connect Spotify**, and sign in with the account allowed in your Spotify developer app. Approve permission to read and modify private playlists. Spotify returns you to the local app.
 
-Restart the server after changing `.env`. Keep the server bound to loopback; public hosting is outside this version's scope. Stop it with Ctrl+C.
+Keep the server running during login and use. Stop it with Ctrl+C; restart after changing `.env`. For configuration or login problems, see [INIT.md](INIT.md#registration-and-login-troubleshooting).
 
-To check both providers after connecting, run this in a second terminal from the repository root:
+To check Spotify search and Last.fm similarity, run this in a second terminal:
 
 ```sh
 pixi run smoke
 ```
 
-This checks Spotify search and Last.fm similarity without creating a playlist. A successful check reports `PASS`; missing configuration or login returns exit code `2`.
+A successful check reports `PASS`. Missing configuration or login returns exit code `2`. This check does not create a playlist.
 
-### Registration and login troubleshooting
+## Options and workflow
 
-| Symptom | What to check |
+1. Search for up to **10 bands or artists** and optionally choose up to **10 songs per artist**. Spotify artist/track links and URIs also work.
+2. Set the playlist title, **song count (1–200)**, and integer **random seed** (default `42`).
+3. Generate a preview, review the suggestions, and replace or remove songs.
+4. Click **Save to Spotify** to create a new private playlist. CSV and JSON downloads are also available. Generating a preview never creates a Spotify playlist automatically.
+
+| Option | What it does |
 | --- | --- |
-| Create app reports a required field | Fill both **App name** and **App description**, add the redirect URI, select **Web API**, and review the agreement checkbox. |
-| Spotify reports an invalid redirect URI | Compare the registered URI and `.env` value character for character against `http://127.0.0.1:8000/auth/callback`. Save dashboard changes and restart the server after local changes. |
-| Spotify reports an invalid client | Copy **Client ID** again from the same dashboard app whose redirect URI you configured. Save `.env` and restart the server. |
-| Login works but Spotify requests return `403` | Check the connected account's email in **Users Management / Users and Access** and confirm the app owner has Premium. If the browser used another account, disconnect in Playlist Garden and reconnect with the intended one. |
-| Browser cannot reach the callback | Keep `pixi run dev` running during authorization and use `http://127.0.0.1:8000` to open the app. |
-| App still reports missing configuration | Edit `.env`, not `.env.example`, in the repository root. Replace the placeholder values, save, and restart `pixi run dev` from that directory. |
+| **Include all input songs** | On by default: reserves a place for every unique selected recording. When off, input songs can still appear but have no guaranteed place. |
+| **Choose the mix** | Sets the share of recommended songs from bands you did not supply. With mandatory inputs, it applies to the remaining places; otherwise, it applies to the whole playlist. Fractional quotas round to the nearest song, with halves rounded up. |
+| **Let relevance decide** | Selects without a quota for other bands. |
+| **Order the playlist** | Sorts by band or song, or uses a seeded shuffle. Title and ordering do not affect membership. |
+| **Random seed** | Resolves score ties and controls shuffling. Different seeds do not necessarily change which songs are selected. |
 
-## Make a playlist
+Mandatory input songs stay locked in the preview. Removing a recommendation reduces the saved target count by one; replacing it preserves the count and, in adjustable mode, its discovery category.
 
-1. Search for up to 10 artists and select the correct Spotify result. Optionally select up to 10 songs per artist. Spotify artist/track links and URIs also work.
-2. Set a title, song count (1–200), and integer seed (default `42`).
-3. **Include all input songs**, on by default, reserves places for every unique selected recording. Turn it off to let input songs compete normally; they can still appear, but none are guaranteed.
-4. Choose the discovery mix: **Choose the mix** sets the share of generated places from bands you did not supply; **Let relevance decide** has no quota. When input songs are mandatory, the mix applies only to remaining places. Otherwise it applies to the whole playlist. Fractional quotas round to the nearest song, with halves rounded up.
-5. Order by band, song, or a seeded shuffle. Ordering and title do not affect membership.
-6. Generate, review, replace recommendations, or remove them. Removing a song reduces the saved target count by one; replacement preserves it and the song's discovery category in adjustable mode. Mandatory inputs stay locked.
-7. Click **Save to Spotify** to create a new private playlist. Generation never creates a Spotify playlist automatically. CSV and JSON downloads are available independently.
+The preview shows the **saved** title and settings. **Apply settings to saved data** rebuilds it from the same provider snapshot and discards manual edits in the new copy. After changing input bands or songs, use **Refresh recommendations** to fetch current data. If there are too few matches, the app keeps the snapshot so you can reduce the count or adjust the mix without downloading again.
 
-The preview always shows the **saved** title/settings. After changing the form, click **Apply settings to saved data** to generate a new preview from the same snapshot. Changing the input bands/songs requires **Refresh recommendations**, which fetches current provider data. Shortages retain their snapshots so you can reduce the count or adjust the mix without downloading again.
+**Reproduce this generation** creates an editable local copy without a Spotify export attached. It reruns the algorithm for an unedited generation, or copies the exact selections of a manually edited preview.
 
-## Recommendations and reproducibility
+### How recommendations work
 
-Last.fm supplies similar songs (based on listening data), similar artists, and top tracks. Spotify identifies the actual recordings and receives playlist writes. This combines similarity across your profile; it does not directly find individual listeners who like your entire seed combination. New Spotify apps cannot use its recommendation or related-artist endpoints.
+Last.fm supplies similar songs, similar artists, and top tracks. Spotify resolves these to recordings in its catalogue. The app combines evidence across your collection, gives each input band an equal voice, rewards songs supported by multiple bands, and reduces repeated band/artist representation.
 
-The initial scoring model combines artist candidates (0.4 weight, with decreasing top-track rank) with mean song-similarity evidence (0.6 weight, divided by that band's number of selected songs). Each band's maximum affinity is normalized to one. Selection averages equal band contributions, rewards support from multiple bands, and reduces repeated band/artist representation. The seed deterministically resolves score ties and shuffles the final order; it is not a promise that every seed produces different membership.
+Artist evidence has an initial weight of 0.4, with decreasing top-track rank; song-similarity evidence has a weight of 0.6, averaged across that band's selected songs. Each band's maximum affinity is normalized to one before selection. This uses listening-based similarity; it does not directly identify listeners who like your entire collection.
 
-Every saved generation contains the confirmed inputs, settings, algorithm version, timestamped provider responses, resolved candidates, affinities, explanations, and ordered recordings. No network calls are needed for **Reproduce this generation**. Identical inputs, settings, algorithm version, and snapshot produce identical results. A new live refresh can change results even with the same seed.
+## Considerations and technical details
 
-Reproducing an unedited generation reruns the algorithm; reproducing a manually edited preview copies its exact saved selections. Both create an editable local copy with no Spotify export attached. Applying settings rebuilds the recommendation from the snapshot and discards manual edits in the new copy.
+### Results and reproducibility
 
-Spotify candidates require matching normalized artist and song names. Uncertain recordings and automatically discovered live/remix/remastered versions are skipped; explicitly selected versions are allowed as inputs. Deduplication uses ISRC where available and normalized song/artist identifiers otherwise. Availability checks use catalogue information returned by Spotify and remain limited by what the API exposes.
+Snapshots store the inputs, settings, algorithm version, timestamped provider responses, candidates, scores, explanations, and ordered recordings. The same inputs, settings, algorithm version, and snapshot produce the same result without network calls. A live refresh can change results even with the same seed.
 
-Acquisition is bounded to eight similar artists per input band, 30 own-band top tracks, 15 tracks per similar artist, 25 neighbors per seed song, and at most 600 Spotify candidate searches, with three concurrent provider calls and a ten-minute deadline. Sparse coverage or conservative matching can cause shortfalls; the app reports these instead of silently changing your requested count or mix. Progress reports acquisition, not measured recommendation quality.
+Matching requires normalized artist and song names. Uncertain recordings and automatically discovered live, remix, or remastered versions are skipped; explicitly selected versions are allowed. Recordings are deduplicated by ISRC where available, with normalized song/artist identifiers as a fallback. Availability checks are limited to the catalogue information Spotify exposes.
 
-## Data and recovery
+Discovery is bounded to eight similar artists per input band, 30 own-band top tracks, 15 tracks per similar artist, 25 neighbors per seed song, and at most 600 Spotify candidate searches. Provider calls run with concurrency three and a ten-minute deadline. Sparse coverage and conservative matching can cause shortfalls; the app reports these instead of changing the requested count or mix. Progress indicates acquisition, not recommendation quality.
 
-`data/playlist.sqlite3` holds generation snapshots and server-side Spotify tokens. The directory is created with private permissions and the database with owner-only permissions. Tokens are stored locally without application-level encryption; protect this computer and its backups. `.env`, data, and caches are ignored by Git. The UI only receives catalogue results and generation records, never access/refresh tokens or API keys.
+### Local data and Spotify exports
 
-**Disconnect Spotify** removes local tokens. To delete local history and snapshots, stop the server and delete the configured data directory. Spotify playlists already saved remain in Spotify. Searches go to Spotify; input artist/song names go to Last.fm. The app does not request your listening history. It includes loopback host restrictions and CSRF protection and is not designed as a public multi-user service.
+The stack is Python 3.12, FastAPI, and SQLite. `pyproject.toml` defines the environment and tasks; `pixi.lock` pins dependencies.
 
-An interrupted playlist append is reconciled against Spotify before retrying. A saved export can be clicked again without creating another playlist. If creation itself times out, the app stops: check Spotify, then attach the playlist link for that generation, or explicitly confirm that no playlist exists to reset the attempt. It will not overwrite externally edited playlists. Reproduce a completed generation to make changes or create a separate playlist.
+`data/playlist.sqlite3` holds generation history, provider snapshots, and Spotify tokens. The data directory has private permissions and the database has owner-only permissions, but tokens have no application-level encryption. Protect the computer and its backups. `.env`, data, and caches are ignored by Git; credentials and tokens are never sent to the UI.
 
-## Validation
+Searches go to Spotify, and input artist/song names go to Last.fm. The app does not request your listening history. **Disconnect Spotify** removes local tokens. To delete local history, stop the server and delete the directory configured by `PLAYLIST_DATA_DIR` (default `data`). Playlists already saved to Spotify remain there.
+
+Keep the server on loopback. It includes host restrictions and CSRF protection and is intended for personal local use; public multi-user hosting is outside its scope.
+
+Saving an already exported generation reuses its playlist. Interrupted appends are reconciled with Spotify before retrying. If playlist creation times out, check Spotify and attach the playlist link in the app, or confirm that no playlist exists before resetting the attempt. The app will not overwrite externally edited playlists. Reproduce a completed generation to make changes or create another playlist.
+
+### Validation
 
 ```sh
 pixi run lint
@@ -139,17 +91,19 @@ pixi run test
 pixi run smoke
 ```
 
-The smoke check uses your configured credentials and connected account for real Spotify search and Last.fm similarity. It returns exit code `2` when configuration/login is missing. To also exercise playlist creation, explicitly run:
+Tests use isolated databases and mocked providers to cover selection, replay, matching, authentication, edits, and uncertain writes. They do not establish live API access or recommendation quality. The smoke check verifies real provider access with your credentials.
+
+To also check playlist creation:
 
 ```sh
 pixi run smoke --write
 ```
 
-This creates a private one-song playlist titled **Playlist Garden integration check** and records its generation for recovery in the app. Delete that test playlist in Spotify when finished.
+This creates a private one-song playlist called **Playlist Garden integration check** and records its generation for recovery. Delete the test playlist in Spotify when finished.
 
-Tests use isolated databases and mocked providers for quota semantics, 23 mandatory + 27 recommended songs, deterministic replay, optional inputs, matching, authentication, API errors, preview edits, and uncertain writes. They do not prove real-provider access or recommendation quality. For a listening evaluation, compare several mixed-band profiles with recommendations made independently per band, and record relevance, discovery, and band coverage; live listening evaluation requires your credentials and judgment.
+Recommendation quality still needs listening evaluation: compare several mixed-band profiles against recommendations made independently per band, recording relevance, discovery, and band coverage.
 
-## Source references
+### API references
 
-- [Spotify search](https://developer.spotify.com/documentation/web-api/reference/search), [create playlist](https://developer.spotify.com/documentation/web-api/reference/create-playlist), [playlist items](https://developer.spotify.com/documentation/web-api/reference/add-items-to-playlist), [2026 migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide), and [PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow).
-- Last.fm [similar tracks](https://www.last.fm/api/show/track.getSimilar), [similar artists](https://www.last.fm/api/show/artist.getSimilar), and [top tracks](https://www.last.fm/api/show/artist.getTopTracks). Review [API terms](https://www.last.fm/api/tos) before changing this personal tool into a commercial or research service.
+- Spotify: [search](https://developer.spotify.com/documentation/web-api/reference/search), [create playlist](https://developer.spotify.com/documentation/web-api/reference/create-playlist), [playlist items](https://developer.spotify.com/documentation/web-api/reference/add-items-to-playlist), and [2026 API changes](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide).
+- Last.fm: [similar tracks](https://www.last.fm/api/show/track.getSimilar), [similar artists](https://www.last.fm/api/show/artist.getSimilar), and [top tracks](https://www.last.fm/api/show/artist.getTopTracks). Review its [API terms](https://www.last.fm/api/tos) before adapting this personal tool for commercial or research use.
