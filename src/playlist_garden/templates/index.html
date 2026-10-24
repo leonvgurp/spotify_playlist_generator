@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrf }}" />
+    <title>Playlist Garden</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a href="/" class="brand"
+        ><span class="brand-mark">♫</span> Playlist Garden</a
+      ><span class="local">PERSONAL · LOCAL</span
+      ><button id="connect" class="outline">Connect Spotify</button>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow">A LITTLE FAMILIAR. A LITTLE UNEXPECTED.</p>
+        <h1>Your taste.<br /><em>New directions.</em></h1>
+        <p>
+          Start with the bands and songs you love.<br />Grow a playlist from the
+          connections between them.
+        </p>
+      </section>
+      <div id="setup" class="notice" hidden></div>
+      <div id="error" role="alert" class="notice error" hidden></div>
+      <div class="workspace">
+        <section class="card seeds">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">01 / THE STARTING POINT</p>
+              <h2>Plant your seeds</h2>
+            </div>
+            <span id="band-count" class="pill">0 / 10 bands</span>
+          </div>
+          <p class="muted">
+            Every band gets an equal voice. Add up to 10 songs per band to
+            fine-tune its influence.
+          </p>
+          <label for="artist-search">Find a band or artist</label>
+          <input
+            id="artist-search"
+            type="search"
+            placeholder="Type a name or paste a Spotify artist link"
+            autocomplete="off"
+            maxlength="300"
+            aria-controls="artist-results"
+          />
+          <div id="artist-results" class="results" aria-live="polite"></div>
+          <div id="bands"></div>
+          <div id="seed-empty" class="empty">
+            Your next favorite song starts here.<small
+              >Add your first band above.</small
+            >
+          </div>
+        </section>
+        <section class="card settings">
+          <p class="eyebrow">02 / MAKE IT YOURS</p>
+          <h2>Shape the playlist</h2>
+          <form id="settings-form">
+            <label for="title">Playlist title</label
+            ><input
+              id="title"
+              value="Discovery playlist"
+              maxlength="100"
+              required
+            />
+            <div class="two-col">
+              <div>
+                <label for="count">Number of songs</label
+                ><input
+                  id="count"
+                  type="number"
+                  min="1"
+                  max="200"
+                  value="50"
+                  required
+                />
+              </div>
+              <div>
+                <label for="seed">Random seed</label
+                ><input
+                  id="seed"
+                  type="number"
+                  min="-9007199254740991"
+                  max="9007199254740991"
+                  value="42"
+                  step="1"
+                  required
+                />
+              </div>
+            </div>
+            <label class="toggle-row" for="include"
+              ><span
+                >Include all input songs<small id="include-help"
+                  >Your selected songs get a guaranteed place.</small
+                ></span
+              ><input id="include" type="checkbox" role="switch" checked
+            /></label>
+            <label for="discovery">Discovery mix</label
+            ><select id="discovery">
+              <option value="adjustable">Choose the mix</option>
+              <option value="relevance">Let relevance decide</option>
+            </select>
+            <div id="mix-controls">
+              <div class="range-label">
+                <span id="percent-title">From other bands</span
+                ><output id="percent-label" for="percent">50%</output>
+              </div>
+              <input
+                id="percent"
+                type="range"
+                min="0"
+                max="100"
+                value="50"
+                aria-labelledby="percent-title"
+              />
+              <p class="hint" id="mix-help">
+                Applies to songs added after your mandatory inputs.
+              </p>
+            </div>
+            <label for="ordering">Order the playlist</label
+            ><select id="ordering">
+              <option value="random">Randomized</option>
+              <option value="band">By band name</option>
+              <option value="song">By song name</option>
+            </select>
+            <p class="hint">
+              Same seed + same saved data = same playlist. Refreshing data can
+              change the results.
+            </p>
+            <button id="generate" type="submit" class="primary full">
+              Generate playlist <span>↗</span>
+            </button>
+          </form>
+          <div id="progress" role="status" class="progress" hidden>
+            <span class="spinner"></span><span id="progress-text"></span>
+          </div>
+        </section>
+      </div>
+      <section id="preview" class="card preview" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 / YOUR NEXT LISTEN</p>
+            <h2 id="preview-title"></h2>
+            <p id="preview-meta" class="muted"></p>
+          </div>
+          <span id="preview-count" class="pill"></span>
+        </div>
+        <div id="warnings" class="hint"></div>
+        <div id="shortage" class="notice" hidden></div>
+        <div class="toolbar">
+          <button id="save" class="primary">Save to Spotify</button
+          ><button id="reproduce" class="outline">
+            Reproduce this generation</button
+          ><button id="apply" class="outline">
+            Apply settings to saved data</button
+          ><button id="refresh" class="outline">Refresh recommendations</button
+          ><a id="csv" class="text-link">CSV ↓</a
+          ><a id="json" class="text-link">JSON ↓</a>
+        </div>
+        <div id="export-result" role="status"></div>
+        <div id="recovery" class="notice" hidden>
+          <p>Creation may have succeeded. Check Spotify before retrying.</p>
+          <label for="recovery-link"
+            >Link to the playlist created for this generation</label
+          ><input
+            id="recovery-link"
+            placeholder="https://open.spotify.com/playlist/…"
+          />
+          <div class="toolbar">
+            <button id="recover" class="outline">Attach playlist</button
+            ><button id="reset-export" class="outline">
+              I checked: no playlist exists
+            </button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>SONG / ARTIST</th>
+                <th>WHY IT FITS</th>
+                <th><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="tracks"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="history">
+        <div class="section-heading">
+          <h2>Saved generations</h2>
+          <span class="muted">Stored on this computer</span>
+        </div>
+        <div id="history"></div>
+      </section>
+    </main>
+    <footer>
+      <span>Made from your taste, connected by listening data.</span
+      ><span
+        >Discovery:
+        <a href="https://www.last.fm" target="_blank" rel="noreferrer"
+          >Last.fm</a
+        >
+        · Catalogue & playlists:
+        <a href="https://www.spotify.com" target="_blank" rel="noreferrer"
+          >Spotify</a
+        ></span
+      >
+      <p>
+        Your Spotify tokens and generation history stay in the local data
+        directory. This app sends artist/song searches to Spotify and seed names
+        to Last.fm. No listening history is requested. Disconnect Spotify to
+        remove its local tokens; remove the data directory to delete local
+        history.
+      </p>
+    </footer>
+  </body>
+</html>
