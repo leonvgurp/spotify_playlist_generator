@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "playlist-garden"
+version = "0.1.0"
+description = "A reproducible personal playlist generator"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi>=0.115,<1", "uvicorn>=0.32,<1", "jinja2>=3.1,<4",
+  "httpx>=0.28,<1", "pydantic>=2.10,<3", "python-dotenv>=1,<2",
+]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tool.pixi.pypi-dependencies]
+playlist-garden = { path = ".", editable = true }
+
+[tool.pixi.dependencies]
+python = "3.12.*"
+pytest = ">=8,<10"
+ruff = ">=0.11,<1"
+
+[tool.pixi.tasks]
+dev = "uvicorn playlist_garden.app:app --host 127.0.0.1 --port 8000 --reload"
+test = "pytest -q"
+lint = "ruff check src tests"
+smoke = "python -m playlist_garden.smoke"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
